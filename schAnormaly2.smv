@@ -1,0 +1,124 @@
+-- schAnormaly2.smv
+/-- 
+スケジュール異常モデル: preemptiveモデル
+dispatchが起きると遅くなる例(log03.txt)
+-- the result of MIN [ c1 = 0 , c1 = C1 ]  is 3
+-- the result of MAX [ c1 = 0 , c1 = C1 ]  is 3
+-- the result of MIN [ c2 = 0 , c2 = C2 ]  is 2
+-- the result of MAX [ c2 = 0 , c2 = C2 ]  is 2
+-- the result of MIN [ c3 = 0 , c3 = C3 ]  is 2
+-- the result of MAX [ c3 = 0 , c3 = C3 ]  is 2
+-- the result of MIN [ c4 = 0 , c4 = C4 ]  is 2
+-- the result of MAX [ c4 = 0 , c4 = C4 ]  is 4
+-- the result of MIN [ c5 = 0 , c5 = C5 ]  is 4
+-- the result of MAX [ c5 = 0 , c5 = C5 ]  is 8
+-- the result of MIN [ c6 = 0 , c6 = C6 ]  is 4
+-- the result of MAX [ c6 = 0 , c6 = C6 ]  is 8
+-- the result of MIN [ c7 = 0 , c7 = C7 ]  is 4
+-- the result of MAX [ c7 = 0 , c7 = C7 ]  is 8
+-- the result of MIN [ c8 = 0 , c8 = C8 ]  is 4
+-- the result of MAX [ c8 = 0 , c8 = C8 ]  is 12
+-- the result of MIN [ c9 = 0 , c9 = C9 ]  is 13
+-- the result of MAX [ c9 = 0 , c9 = C9 ]  is 16
+--
+実行時間0分(LATITUDE E7450)
+
+--/
+
+MODULE BaseTask(c, t, C, waiting, gp)
+
+DEFINE
+rq := c < C & !waiting;         -- CPU要求中
+lv_rls := c = C - 1 & t = 0;   -- CPU要求中 & 次のJobが次に起動される
+slp_rls := c = C & t = 0;      -- 終了 & 次のJobが次に起動される
+
+ASSIGN
+init(c):= 0;
+next(c):= case
+rq & gp : c + 1;          -- 実行中
+lv_rls & gp | slp_rls: 0; -- 起動 
+!gp : c;                  -- 停止
+TRUE : 0;                 -- 起動
+esac;
+
+
+-----------------------------------------------------------
+MODULE main
+DEFINE
+C1:=3; C2:=2; C3:=2; C4:= 2; C5:=4; C6:= 4; C7:= 4; C8:= 4; C9:=9;	-- Ciは実行時間
+PN:=3; 						-- プロセッサ数
+Tmax:= C1 + C2 + C3 + C4 + C5 + C6 + C7 + C8 + C9 + 1;	-- 終了時間
+
+VAR
+c1:0..C1;
+c2:0..C2;
+c3:0..C3;
+c4:0..C4;
+c5:0..C5;
+c6:0..C6;
+c7:0..C7;
+c8:0..C8;
+c9:0..C9;
+t:0..Tmax;	-- ti: 起動点からの経過時間、初期値は起動オフセット
+
+Tk1 : BaseTask(c1, t, C1, FALSE, T1_gp);
+Tk2 : BaseTask(c2, t, C2, FALSE, T2_gp);
+Tk3 : BaseTask(c3, t, C3, FALSE, T3_gp);
+Tk4 : BaseTask(c4, t, C4, FALSE, T4_gp);
+Tk5 : BaseTask(c5, t, C5, prece5, T5_gp);
+Tk6 : BaseTask(c6, t, C6, prece6, T6_gp);
+Tk7 : BaseTask(c7, t, C7, prece7, T7_gp);
+Tk8 : BaseTask(c8, t, C8, prece8, T8_gp);
+Tk9 : BaseTask(c9, t, C9, prece9, T9_gp);
+
+DEFINE
+prece9:= Tk1.rq;
+prece5:= Tk4.rq;
+prece6:= Tk4.rq;
+prece7:= Tk4.rq;
+prece8:= Tk4.rq;
+
+DEFINE
+
+T1_gp := Tk1.rq;
+T2_gp := Tk2.rq & (toint(Tk1.rq) < PN);
+T3_gp := Tk3.rq & ((toint(Tk1.rq) + toint(Tk2.rq)) < PN);
+T4_gp := Tk4.rq & (toint(Tk1.rq) + toint(Tk2.rq) + toint(Tk3.rq) < PN);
+T5_gp := Tk5.rq & (toint(Tk1.rq) + toint(Tk2.rq) + toint(Tk3.rq) + toint(Tk4.rq) < PN);
+T6_gp := Tk6.rq & (toint(Tk1.rq) + toint(Tk2.rq) + toint(Tk3.rq) + toint(Tk4.rq) + toint(Tk5.rq) < PN);
+T7_gp := Tk7.rq & (toint(Tk1.rq) + toint(Tk2.rq) + toint(Tk3.rq) + toint(Tk4.rq) + toint(Tk5.rq) + toint(Tk6.rq) < PN);
+T8_gp := Tk8.rq & (toint(Tk1.rq) + toint(Tk2.rq) + toint(Tk3.rq) + toint(Tk4.rq) + toint(Tk5.rq) + toint(Tk6.rq) + toint(Tk7.rq) < PN);
+T9_gp := Tk9.rq & (toint(Tk1.rq) + toint(Tk2.rq) + toint(Tk3.rq) + toint(Tk4.rq) + toint(Tk5.rq) + toint(Tk6.rq) + toint(Tk7.rq) + toint(Tk8.rq) < PN);
+
+ASSIGN
+init(t):=0; 	-- 非決定性の{}の中でマクロは使えない
+next(t):= (t + 1) mod Tmax;
+
+-----------------------------------------------------------
+
+COMPUTE MIN[c1=0,c1=C1]
+COMPUTE MAX[c1=0,c1=C1]
+--
+COMPUTE MIN[c2=0,c2=C2]
+COMPUTE MAX[c2=0,c2=C2]
+--
+COMPUTE MIN[c3=0,c3=C3]
+COMPUTE MAX[c3=0,c3=C3]
+--
+COMPUTE MIN[c4=0,c4=C4]
+COMPUTE MAX[c4=0,c4=C4]
+--
+COMPUTE MIN[c5=0,c5=C5]
+COMPUTE MAX[c5=0,c5=C5]
+--
+COMPUTE MIN[c6=0,c6=C6]
+COMPUTE MAX[c6=0,c6=C6]
+--
+COMPUTE MIN[c7=0,c7=C7]
+COMPUTE MAX[c7=0,c7=C7]
+--
+COMPUTE MIN[c8=0,c8=C8]
+COMPUTE MAX[c8=0,c8=C8]
+--
+COMPUTE MIN[c9=0,c9=C9]
+COMPUTE MAX[c9=0,c9=C9]

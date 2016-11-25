@@ -1,0 +1,163 @@
+-- cyclicEx.smv
+-- Cyclic Executiveサンプル
+/--
+--/
+
+MODULE main
+DEFINE
+--C1:=2; C2:=5; C3:=15; C4:= 20;    -- Ciは実行時間
+C1:=2; C2:=6; C3:=25; C4:= 40;    -- Ciは実行時間
+T1:=25; T2:=50; T3:=200; T4:=1000;     -- Tiはタイマー周期
+MajorCycle:= 1000;
+MinorCycle:= 25;
+D1:=25; D2:=50; D3:=200; D4:=1000;     -- Diはデッドライン
+Lax1:= D1 - C1; Lax2:= D2 - C2; -- 余裕時間 (Slack time, Laxity)
+Lax3:= D3 - C3; Lax4:= D4 - C4;
+F1Miss:= dly1 > Lax1;    -- 余裕時間以上に遅延したらデッドラインオーバー
+F2Miss:= dly2 > Lax2;
+F3Miss:= dly3 > Lax3;
+F4Miss:= dly4 > Lax4;
+MISS:= F1Miss | F2Miss | F3Miss | F4Miss; -- デッドラインオーバー判定
+
+C1i:= C1 - 1; C2i:= C2 - 1; C3i:= C3 - 1; C4i:= C4 - 1;
+T1i:= T1 - 1; T2i:= T2 - 1; T3i:= T3 - 1; T4i:= T4 - 1;
+
+Req:= word1(req1)::word1(req2)::word1(req3)::word1(req4);
+--Free:= (state = free) | (c1 = 0 & c2 = 0 & c3 = 0 & c4 = 0);
+Free:= (c1 = 0 & c2 = 0 & c3 = 0 & c4 = 0);
+
+VAR
+t: 0..MajorCycle;	-- グローバル時間
+t1:0..T1i;    -- ti: 起動点からの経過時間、初期値は起動オフセット, ti = 0で割り込みが入る
+t2:0..T2i;    -- t1,t2がハーモニックならt1のみで良い
+t3:0..T3i;
+t4:0..T4i;
+c1:0..C1i;    -- 処理A経過時間
+c2:0..C2i;
+c3:0..C3i; --
+c4:0..C4i; -- C4 - 1まで
+state: {free, a, b, c, d};    -- CPU状態,処理中の処理, 起動時(c=0)に更新
+--st: unsigned word[4];
+req1: boolean; -- 0..1; -- 0からDi/Tiまで, 起動要求あり/なし
+req2: boolean; 
+req3: boolean; 
+req4: boolean; 
+dly1:0..Lax1 + 1;  -- 起動要求からの経過時間
+dly2:0..Lax2 + 1;  
+dly3:0..Lax3 + 1;  
+dly4:0..Lax4 + 1;  
+
+ASSIGN
+init(t):=0;
+init(t1):= 0; --Cyclic Executiveでは非決定性は考慮しない
+init(t2):= 0; 
+init(t3):= 0;
+init(t4):= 0;
+next(t1):= (t1 + 1) mod T1;
+next(t2):= (t2 + 1) mod T2;
+next(t3):= (t3 + 1) mod T3;
+next(t4):= (t4 + 1) mod T4;
+next(t):= case
+	MajorCycle > t & t >= 0 : t + 1;
+TRUE: t;
+esac;
+-----------------------------
+init(req1):= (t1 = 0);
+next(req1):= case
+    next(t1)=0 : TRUE;
+    state = a & c1 > 0 : FALSE;
+TRUE : req1;
+esac;
+init(dly1):= 0;
+next(dly1):= case
+    req1 & next(state) != a & dly1 < Lax1 + 1: dly1 + 1;
+TRUE: 0;
+esac;
+next(c1):= case
+    (state) = a & c1 < C1i: c1 + 1;
+TRUE: 0;
+esac;
+-----------------------------
+init(req2):= (t2 = 0);
+next(req2):= case
+    next(t2)=0 : TRUE;
+    (state) = b & c2 > 0 : FALSE;
+TRUE : req2;
+esac;
+
+init(dly2):= 0;
+next(dly2):= case
+    req2 & next(state) != b & dly2 < Lax2 + 1: dly2 + 1;
+TRUE: 0;
+esac;
+
+init(req3):= (t3 = 0);
+next(req3):= case
+    next(t3)=0 : TRUE;
+    (state) = c & c3 = 1 : FALSE;
+TRUE : req3;
+esac;
+
+init(dly3):= 0;
+next(dly3):= case
+    req3 & next(state) != c & dly3 < Lax3 + 1: dly3 + 1;
+TRUE: 0;
+esac;
+
+init(req4):= (t4 = 0);
+next(req4):= case
+    next(t4)=0 : TRUE;
+    (state) = d & c4 = 1: FALSE;	-- 
+TRUE : req4;
+esac;
+
+init(dly4):= 0;
+next(dly4):= case
+    req4 & next(state) != d & dly4 < Lax4 + 1: dly4 + 1;
+TRUE: 0;
+esac;
+
+
+init(state):= {a,b,c,d};
+init(c1):= 0;
+init(c2):= 0;
+init(c3):= 0;
+init(c4):= 0;
+next(state):= case
+	next(Free) & next(Req) = 0ub4_1111: {a, b, c, d};
+	next(Free) & next(Req) = 0ub4_0000: free;
+	next(Free) & next(Req) = 0ub4_0001: d;
+	next(Free) & next(Req) = 0ub4_0010: c;
+	next(Free) & next(Req) = 0ub4_0011: {c, d};
+	next(Free) & next(Req) = 0ub4_0100: b;
+	next(Free) & next(Req) = 0ub4_0101: {b, d};
+	next(Free) & next(Req) = 0ub4_0110: {b, c};
+	next(Free) & next(Req) = 0ub4_0111: {b, c, d};
+	next(Free) & next(Req) = 0ub4_1000: a;
+	next(Free) & next(Req) = 0ub4_1001: {a, d};
+	next(Free) & next(Req) = 0ub4_1010: {a,c};
+	next(Free) & next(Req) = 0ub4_1011: {a,c,d};
+	next(Free) & next(Req) = 0ub4_1100: {a,b};
+	next(Free) & next(Req) = 0ub4_1101: {a,b,d};
+	next(Free) & next(Req) = 0ub4_1110: {a,b,c};
+TRUE: state;
+esac;
+next(c2):= case
+    (state) = b & c2 < C2i: c2 + 1;
+TRUE: 0;
+esac;
+next(c3):= case
+    (state) = c & c3 < C3i: c3 + 1;
+TRUE: 0;
+esac;
+next(c4):= case
+    (state) = d & c4 < C4i: c4 + 1;
+TRUE: 0;
+esac;
+
+SPEC ! E [!MISS U t = MajorCycle] -- スケジュール生成, trueになったらスケジュール不能
+--SPEC A [!MISS U t = MajorCycle] -- デッドライン判定
+COMPUTE MAX[dly1 > 0 , dly1 = 0]
+COMPUTE MAX[dly2 > 0 , dly2 = 0]
+COMPUTE MAX[dly3 > 0 , dly3 = 0]
+COMPUTE MAX[dly4 > 0 , dly4 = 0]

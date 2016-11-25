@@ -1,0 +1,81 @@
+-- work02.smv
+MODULE Task100ms (t, input)
+VAR
+	output: {on, off};
+	saved: {on, off};
+	update_t: 0..9;
+
+ASSIGN
+	init(update_t) := {0..9};
+	next(update_t):= update_t;
+	init(saved):= input;
+	next(saved):= input;
+		
+	init(output) := saved;
+	next(output) := case
+		t = update_t : saved;
+		TRUE: output;
+	esac;
+
+MODULE CanInput (t)
+VAR
+	sig1:  {on, off}; -- on:ê≥èÌ, off:çUåÇ
+	attack_t: 0..9;
+
+ASSIGN
+	init(attack_t):= {1..9};
+	next(attack_t):= attack_t;
+	init(sig1):= case 
+		attack_t = t: off;
+		TRUE: on;
+	esac;
+	next(sig1) := case
+		next(t) = attack_t : off;
+		TRUE : on;
+	esac;
+
+MODULE main
+DEFINE
+	AFFECTED:= ctrl.output = off;
+VAR
+	input : CanInput(t);
+	ctrl : Task100ms(t, input.sig1);
+	t: 0..9;
+
+ASSIGN
+	init(t):= 0;
+	next(t) := case
+		t < 9: t + 1;
+		t = 9: 0;
+	esac;
+
+COMPUTE MAX[AFFECTED,!AFFECTED]	-- ç≈í∑çUåÇå∞ç›âªä˙ä‘
+--COMPUTE MAX[!AFFECTED,AFFECTED] --
+--COMPUTE MIN[AFFECTED,!AFFECTED]
+--COMPUTE MIN[!AFFECTED,AFFECTED]
+
+--COMPUTE MAX[AFFECTED & (input.attack_t = ctrl.update_t),!AFFECTED & (input.attack_t = ctrl.update_t)]
+--COMPUTE MAX[AFFECTED & (input.attack_t != ctrl.update_t),!AFFECTED & (input.attack_t != ctrl.update_t)]
+
+--SPEC AF (input.attack_t = ctrl.update_t)&(t > 0)
+--SPEC AG (input.attack_t = ctrl.update_t)&(t > 0) -> AFFECTED
+--SPEC AG (input.attack_t != ctrl.update_t) -> ! AFFECTED
+--SPEC AG AFFECTED -> (input.attack_t = ctrl.update_t)
+
+SPEC ! EF AFFECTED	-- çUåÇÇ™ê¨å˜Ç∑ÇÈÇ±Ç∆ÇÕñ≥Ç¢
+SPEC  ! EBF 0..100 AFFECTED	-- Ç±ÇÃä˙ä‘Ç…çUåÇÇ™ê¨å˜Ç∑ÇÈÇ±Ç∆ÇÕñ≥Ç¢
+
+SPEC EG AFFECTED
+SPEC ! EG AFFECTED
+SPEC ! EBG 3..13 AFFECTED
+
+--SPEC  ABF 0..10 AFFECTED
+--SPEC  EBG 0..10 AFFECTED
+--SPEC  ABG 0..10 AFFECTED
+--SPEC  ABF 0..10 AFFECTED
+
+
+--SPEC AG AFFECTED	-- èÌÇ…çUåÇÇ™ê¨å˜Ç∑ÇÈ
+--SPEC ! AG AFFECTED	-- èÌÇ…çUåÇÇ™ê¨å˜Ç∑ÇÈÇÌÇØÇ≈ÇÕÇ»Ç¢
+--SPEC (AG ((t > 0) -> AFFECTED))
+--SPEC !(AG ((t > 0) -> ! AFFECTED))
